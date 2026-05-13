@@ -3,6 +3,9 @@
   "functions": {
     "api/recipe.js": {
       "maxDuration": 30
+    },
+    "api/recipe-pdf.js": {
+      "maxDuration": 15
     }
   }
 }
