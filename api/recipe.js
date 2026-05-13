@@ -4,13 +4,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { ingredients, brand } = req.body || {};
 
@@ -54,7 +49,14 @@ export default async function handler(req, res) {
     const clean = raw.replace(/```json|```/g, '').trim();
     const recipe = JSON.parse(clean);
 
-    return res.status(200).json(recipe);
+    // Generar URL del PDF con la receta codificada
+    const encoded = Buffer.from(JSON.stringify({ ...recipe, brand })).toString('base64');
+    const baseUrl = process.env.VERCEL_URL
+      ? 'https://' + process.env.VERCEL_URL
+      : 'https://playmo-receta-proxy.vercel.app';
+    const pdfUrl = baseUrl + '/api/recipe-pdf?d=' + encoded;
+
+    return res.status(200).json({ ...recipe, pdfUrl });
 
   } catch (err) {
     console.error('Proxy error:', err);
