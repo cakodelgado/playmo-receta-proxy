@@ -9,12 +9,21 @@ export default async function handler(req, res) {
 
   let recipe;
   try {
-    recipe = JSON.parse(Buffer.from(d, 'base64url').toString('utf-8'));
+    const decoded = Buffer.from(d, 'base64url').toString('utf-8');
+    const parsed = JSON.parse(decoded);
+    /* Soporta tanto claves cortas (n,i,e,b) como largas (nombre,ingredientes...) */
+    recipe = {
+      nombre:      parsed.n || parsed.nombre      || 'Tu receta',
+      ingredientes: parsed.i || parsed.ingredientes || [],
+      elaboracion:  parsed.e || parsed.elaboracion  || '',
+      brand:        parsed.b || parsed.brand        || 'Playmo'
+    };
   } catch (e) {
-    return res.status(400).send('Parametro invalido');
+    console.error('PDF parse error:', e.message, '| d:', d ? d.substring(0, 100) : 'undefined');
+    return res.status(400).send('Parametro invalido: ' + e.message);
   }
 
-  const { nombre, descripcion, ingredientes, elaboracion, brand } = recipe;
+  const { nombre, ingredientes, elaboracion, brand } = recipe;
   const stepsArr = (elaboracion || '').split('|').map(s => s.trim()).filter(Boolean);
 
   res.setHeader('Content-Type', 'application/pdf');
@@ -40,11 +49,7 @@ export default async function handler(req, res) {
 
   doc.rect(55, 98, 60, 3).fill(ORANGE);
 
-  doc.moveDown(0.5);
-  doc.fontSize(11).fillColor(MUTED).font('Helvetica-Oblique')
-     .text(descripcion || '', 55, 128, { width: doc.page.width - 110, lineGap: 4 });
-
-  const afterDesc = doc.y + 20;
+  const afterDesc = 138;
   const colW = (doc.page.width - 110 - 20) / 2;
   const colL = 55;
   const colR = 55 + colW + 20;
