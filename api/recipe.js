@@ -49,10 +49,14 @@ export default async function handler(req, res) {
     const clean = raw.replace(/```json|```/g, '').trim();
     const recipe = JSON.parse(clean);
 
-    /* Codificar con encodeURIComponent para evitar que +/= del base64 se corrompan en email */
-    const encoded = encodeURIComponent(
-      Buffer.from(JSON.stringify({ ...recipe, brand })).toString('base64')
-    );
+    /* Claves cortas para reducir longitud de URL — evita truncado en campos cortos */
+    const compact = {
+      n: recipe.nombre,
+      i: recipe.ingredientes,
+      e: recipe.elaboracion,
+      b: brand
+    };
+    const encoded = Buffer.from(JSON.stringify(compact)).toString('base64url');
     const baseUrl = 'https://playmo-receta-proxy.vercel.app';
     const pdfUrl = baseUrl + '/api/recipe-pdf?d=' + encoded;
 
