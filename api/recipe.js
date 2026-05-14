@@ -49,31 +49,26 @@ export default async function handler(req, res) {
     const clean = raw.replace(/```json|```/g, '').trim();
     const recipe = JSON.parse(clean);
 
-    /* Claves cortas para reducir tamaño del base64 */
+    /* Guardar receta en Upstash con ID corto (7 dias de expiry) */
+    const id = Math.random().toString(36).substring(2, 10);
     const compact = {
       n: recipe.nombre,
       i: recipe.ingredientes,
       e: recipe.elaboracion,
       b: brand
     };
-    const encoded = Buffer.from(JSON.stringify(compact)).toString('base64url');
-    const baseUrl = 'https://playmo-receta-proxy.vercel.app';
-    const longPdfUrl = baseUrl + '/api/recipe-pdf?d=' + encoded;
 
-    /* Acortar con TinyURL — resultado ~26 chars, cabe en cualquier campo */
-    let pdfUrl = longPdfUrl;
-    try {
-      const tinyRes = await fetch(
-        'https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longPdfUrl)
-      );
-      if (tinyRes.ok) {
-        const tiny = await tinyRes.text();
-        if (tiny.startsWith('https://')) pdfUrl = tiny.trim();
-      }
-    } catch (e) {
-      console.error('TinyURL error:', e.message);
-      /* Si falla TinyURL usamos la URL larga igualmente */
-    }
+    await fetch(process.env.UPSTASH_REDIS_REST_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + process.env.UPSTASH_REDIS_REST_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(['SET', 'recipe_' + id, JSON.stringify(compact), 'EX', 604800])
+    });
+
+    const baseUrl = 'https://playmo-receta-proxy.vercel.app';
+    const pdfUrl = baseUrl + '/api/recipe-pdf?id=' + id;
 
     return res.status(200).json({ ...recipe, pdfUrl });
 
