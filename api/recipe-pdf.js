@@ -9,7 +9,7 @@ export default async function handler(req, res) {
 
   let recipe;
   try {
-    recipe = JSON.parse(Buffer.from(decodeURIComponent(d), 'base64').toString('utf-8'));
+    recipe = JSON.parse(Buffer.from(d, 'base64url').toString('utf-8'));
   } catch (e) {
     return res.status(400).send('Parametro invalido');
   }
