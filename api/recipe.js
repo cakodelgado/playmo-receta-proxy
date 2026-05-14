@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     const clean = raw.replace(/```json|```/g, '').trim();
     const recipe = JSON.parse(clean);
 
-    /* Claves cortas para reducir longitud de URL — evita truncado en campos cortos */
+    /* Claves cortas para reducir tamaño del base64 */
     const compact = {
       n: recipe.nombre,
       i: recipe.ingredientes,
@@ -58,7 +58,22 @@ export default async function handler(req, res) {
     };
     const encoded = Buffer.from(JSON.stringify(compact)).toString('base64url');
     const baseUrl = 'https://playmo-receta-proxy.vercel.app';
-    const pdfUrl = baseUrl + '/api/recipe-pdf?d=' + encoded;
+    const longPdfUrl = baseUrl + '/api/recipe-pdf?d=' + encoded;
+
+    /* Acortar con TinyURL — resultado ~26 chars, cabe en cualquier campo */
+    let pdfUrl = longPdfUrl;
+    try {
+      const tinyRes = await fetch(
+        'https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longPdfUrl)
+      );
+      if (tinyRes.ok) {
+        const tiny = await tinyRes.text();
+        if (tiny.startsWith('https://')) pdfUrl = tiny.trim();
+      }
+    } catch (e) {
+      console.error('TinyURL error:', e.message);
+      /* Si falla TinyURL usamos la URL larga igualmente */
+    }
 
     return res.status(200).json({ ...recipe, pdfUrl });
 
