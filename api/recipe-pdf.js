@@ -4,23 +4,28 @@ export default async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const { d } = req.query;
-  if (!d) return res.status(400).send('Falta parametro d');
+  const { id } = req.query;
+  if (!id) return res.status(400).send('Falta parametro id');
 
+  /* Recuperar receta de Upstash */
   let recipe;
   try {
-    const decoded = Buffer.from(d, 'base64url').toString('utf-8');
-    const parsed = JSON.parse(decoded);
-    /* Soporta tanto claves cortas (n,i,e,b) como largas (nombre,ingredientes...) */
+    const upstashRes = await fetch(
+      process.env.UPSTASH_REDIS_REST_URL + '/get/recipe_' + id,
+      { headers: { Authorization: 'Bearer ' + process.env.UPSTASH_REDIS_REST_TOKEN } }
+    );
+    const upstashData = await upstashRes.json();
+    if (!upstashData.result) return res.status(404).send('Receta no encontrada o expirada');
+    const parsed = JSON.parse(upstashData.result);
     recipe = {
-      nombre:      parsed.n || parsed.nombre      || 'Tu receta',
-      ingredientes: parsed.i || parsed.ingredientes || [],
-      elaboracion:  parsed.e || parsed.elaboracion  || '',
-      brand:        parsed.b || parsed.brand        || 'Playmo'
+      nombre:       parsed.n || 'Tu receta',
+      ingredientes: parsed.i || [],
+      elaboracion:  parsed.e || '',
+      brand:        parsed.b || 'Playmo'
     };
   } catch (e) {
-    console.error('PDF parse error:', e.message, '| d:', d ? d.substring(0, 100) : 'undefined');
-    return res.status(400).send('Parametro invalido: ' + e.message);
+    console.error('Upstash error:', e.message);
+    return res.status(500).send('Error recuperando la receta');
   }
 
   const { nombre, ingredientes, elaboracion, brand } = recipe;
