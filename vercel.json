@@ -6,6 +6,12 @@
     },
     "api/recipe-pdf.js": {
       "maxDuration": 15
+    },
+    "api/keepalive.js": {
+      "maxDuration": 10
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/keepalive", "schedule": "0 6 * * *" }
+  ]
 }
