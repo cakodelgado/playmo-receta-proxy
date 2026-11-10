@@ -12,6 +12,45 @@ export default async function handler(req, res) {
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length !== 3 || !brand) {
     return res.status(400).json({ error: 'Se necesitan exactamente 3 ingredientes y nombre de marca.' });
   }
+  if (String(brand).length > 40 || ingredients.some(function (i) { return String(i).length > 30; })) {
+    return res.status(400).json({ error: 'Marca o ingredientes demasiado largos.' });
+  }
+
+  /* ── TOPE DE COSTE: limite diario global y por usuario (IP) ──
+     Configurable con las variables DAILY_LIMIT e IP_DAILY_LIMIT en Vercel. */
+  const DAILY_LIMIT = parseInt(process.env.DAILY_LIMIT || '50', 10);
+  const IP_DAILY_LIMIT = parseInt(process.env.IP_DAILY_LIMIT || '5', 10);
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+  const ip = String(req.headers['x-forwarded-for'] || 'unknown').split(',')[0].trim();
+  const kDay = 'limit_' + today;
+  const kIp = 'limit_' + today + '_' + ip;
+
+  try {
+    const limRes = await fetch(process.env.UPSTASH_REDIS_REST_URL + '/pipeline', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + process.env.UPSTASH_REDIS_REST_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify([
+        ['INCR', kDay], ['EXPIRE', kDay, 172800],
+        ['INCR', kIp], ['EXPIRE', kIp, 172800]
+      ])
+    });
+    const lim = await limRes.json();
+    const totalHoy = lim[0].result;
+    const ipHoy = lim[2].result;
+    if (totalHoy > DAILY_LIMIT) {
+      return res.status(429).json({ error: 'Hoy ya se han generado todas las recetas disponibles. Vuelve mañana.' });
+    }
+    if (ipHoy > IP_DAILY_LIMIT) {
+      return res.status(429).json({ error: 'Has alcanzado el máximo de recetas por hoy. Vuelve mañana.' });
+    }
+  } catch (e) {
+    /* Si no podemos contar, no llamamos a la IA (evita gasto sin control) */
+    console.error('Limit check error:', e);
+    return res.status(503).json({ error: 'Servicio no disponible. Inténtalo más tarde.' });
+  }
 
   const prompt =
     'Eres un chef creativo y apasionado. Crea una receta original y apetecible usando estos 3 ingredientes: ' +
